@@ -11,7 +11,7 @@ import (
 )
 
 // DO NOT MODIFY
-const version = "1.0.0"
+const version = "1.1.0"
 
 type tempService struct {
 	logger *slog.Logger
