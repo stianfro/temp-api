@@ -80,24 +80,10 @@ func (s *tempService) parseMetrics(metrics []byte) (Climate, error) {
 }
 
 func (s *tempService) handler(w http.ResponseWriter, r *http.Request) {
-	endpoint, ok := os.LookupEnv("METRICS_ENDPOINT")
-	if !ok {
-		s.logger.Error("required environment variable missing", "variable", "METRICS_ENDPOINT")
-		http.Error(w, "Server is missing configuration", http.StatusInternalServerError)
-		return
-	}
-
-	rawMetrics, err := s.getMetrics(endpoint + "/metrics")
+	climate, err := s.currentClimate()
 	if err != nil {
-		s.logger.Error("error getting metrics", err)
-		http.Error(w, "Failed to retrieve metrics", http.StatusInternalServerError)
-		return
-	}
-
-	climate, err := s.parseMetrics(rawMetrics)
-	if err != nil {
-		s.logger.Error("error parsing metrics")
-		http.Error(w, "Failed to parse metrics", http.StatusInternalServerError)
+		s.logger.Error("error getting current climate", err)
+		http.Error(w, "Error getting current climate", http.StatusInternalServerError)
 		return
 	}
 
@@ -122,9 +108,45 @@ func (s *tempService) handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *tempService) run() {
-	http.HandleFunc("/", s.handler)
-	err := http.ListenAndServe(":8080", nil)
+	http.HandleFunc("/api/v1/climate", s.handler)
+	http.HandleFunc("/", s.templHandler)
+
+	listenErr := http.ListenAndServe(":8080", nil)
+	if listenErr != nil {
+		s.logger.Error("error starting http server", listenErr)
+	}
+}
+
+func (s *tempService) currentClimate() (Climate, error) {
+	endpoint, ok := os.LookupEnv("METRICS_ENDPOINT")
+	if !ok {
+		s.logger.Error("required environment variable missing", "variable", "METRICS_ENDPOINT")
+	}
+
+	rawMetrics, err := s.getMetrics(endpoint + "/metrics")
 	if err != nil {
-		s.logger.Error("error starting http server", err)
+		s.logger.Error("error getting metrics", err)
+	}
+	climate, err := s.parseMetrics(rawMetrics)
+	if err != nil {
+		s.logger.Error("error parsing metrics")
+	}
+
+	return climate, nil
+}
+
+func (s *tempService) templHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	c, err := s.currentClimate()
+	if err != nil {
+		s.logger.Error("error getting current climate", err)
+	}
+	tempString := strconv.FormatFloat(c.Temperature, 'f', 2, 64)
+	humidString := strconv.FormatFloat(c.Humidity, 'f', 2, 64)
+
+	renderErr := page(tempString, humidString).Render(ctx, w)
+	if renderErr != nil {
+		s.logger.Error("error rendering templ", err)
 	}
 }
