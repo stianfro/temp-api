@@ -8,3 +8,12 @@ builds:
     goarch:
       - amd64
       - arm64
+nfpms:
+  - maintainer: Stian Frøystein
+    description: Temp API.
+    homepage: https://github.com/stianfro/temp-api
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
